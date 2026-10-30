@@ -4,7 +4,7 @@
   "wizard_type": "service",
   "available": true,
   "short_desc": "One private contact list for Messenger, email and every app.",
-  "author": "Oscar (Hermes) for Miguel",
+  "author": "Humanity Labs",
   "port": 8822,
   "categories": [
     "utilities"

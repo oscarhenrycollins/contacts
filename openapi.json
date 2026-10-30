@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Contacts",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "description": "Private contact list. The Wizard gateway authenticates; linked apps reach http://contacts:8822."
   },
   "paths": {

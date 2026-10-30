@@ -2,9 +2,9 @@
 wizard: 0.2
 id: contacts
 name: Contacts
-type: service
+type: view
 category: app
-version: 0.3.0
+version: 0.3.1
 summary: One private contact list for Messenger, email and every app.
 license: GPL-3.0-only
 source: https://github.com/oscarhenrycollins/contacts

@@ -4,15 +4,23 @@ const assert = require('node:assert/strict'), path = require('node:path'), fs = 
 const base = process.env.CONTACTS_URL || 'http://127.0.0.1:18822/', out = path.resolve(process.argv[2] || 'shots'); fs.mkdirSync(out, {recursive: true});
 const STUB = 'window.WizardApp = {version: 1, ready() {}, toast(t) { window.__toast = t; }, update: {hold: () => ({release() {}})}, back: {register() {}, push: () => ({release() {}})}};';
 (async () => {
-  const browser = await chromium.launch(), done = [];
+  const launch = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? {executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH} : {};
+  const browser = await chromium.launch(launch), done = [];
   for (const [label, viewport, scheme] of [['390-dark', {width: 390, height: 844}, 'dark'], ['1100-light', {width: 1100, height: 800}, 'light']]) {
     const ctx = await browser.newContext({viewport, colorScheme: scheme, deviceScaleFactor: 2});
     const page = await ctx.newPage(), errors = [];
     page.on('pageerror', e => errors.push(e.message));
     await page.route('**/wizard-os-home/core/app-client.js', r => r.fulfill({contentType: 'text/javascript', body: STUB}));
     await page.goto(base);
+    await page.evaluate(() => { document.documentElement.dataset.presentation = 'window'; });
     await page.locator('.ct-row').first().waitFor();
     assert.equal(await page.locator('.ct-letter', {hasText: 'Favourites'}).count(), 1);
+    assert.equal(await page.locator('.ct-head').evaluate(e => getComputedStyle(e).display), 'none', 'the shell owns the window title');
+    for (const id of ['more', 'add']) {
+      const control = page.locator('#' + id), box = await control.boundingBox();
+      assert.ok(box && box.width >= 40 && box.height >= 40, `${id} stays visible when the app header is hidden`);
+      assert.equal(await control.evaluate(e => e.contains(document.elementFromPoint(e.getBoundingClientRect().x + e.getBoundingClientRect().width / 2, e.getBoundingClientRect().y + e.getBoundingClientRect().height / 2))), true, `${id} owns its hit point`);
+    }
     await page.screenshot({path: path.join(out, `list-${label}.png`)});
     await page.locator('#q').fill('acme');
     await page.waitForFunction(() => document.querySelectorAll('.ct-row').length === 1);
@@ -38,7 +46,7 @@ const STUB = 'window.WizardApp = {version: 1, ready() {}, toast(t) { window.__to
     await page.locator('#view[open] .ct-top h2', {hasText: 'New Person'}).waitFor();
     await page.keyboard.press('Escape');
     await page.locator('#more').click();
-    await page.locator('#tools .ct-dup').first().waitFor();
+    await page.locator('#tools[open]').getByRole('button', {name: 'My card & QR codes'}).waitFor();
     await page.screenshot({path: path.join(out, `menu-${label}.png`)});
     assert.deepEqual(errors, []);
     done.push(label); await ctx.close();

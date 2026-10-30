@@ -372,7 +372,7 @@ async function phoneSync() {
 if (!window.WizardApp || WizardApp.version !== 1) {
   say('Wizard system functions are unavailable. Open Contacts through Wizard.', 'error');
 } else {
-  WizardApp.ready({name: 'contacts', version: '0.3.0'});
+  WizardApp.ready({name: 'contacts', version: '0.3.1'});
   WizardApp.back.register({canGoBack: () => false, back: () => false});
 }
 load();

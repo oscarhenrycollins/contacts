@@ -1,0 +1,154 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Contacts",
+    "version": "0.1.0",
+    "description": "Private contact list. The Wizard gateway authenticates; linked apps reach http://contacts:8822."
+  },
+  "paths": {
+    "/api/contacts": {
+      "get": {
+        "summary": "List or search contacts (?q=)",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a contact",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/contacts/{id}": {
+      "get": {
+        "summary": "One contact",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "summary": "Change a contact (partial; a sent list replaces it)",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/contacts/{id}/delete": {
+      "post": {
+        "summary": "Delete a contact",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/contacts/{id}/merge": {
+      "post": {
+        "summary": "Merge {source_id} into this contact",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/contacts/{id}/photo": {
+      "get": {
+        "summary": "Photo bytes",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "summary": "Set photo {data: base64} or clear it",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/contacts/{id}/unlink": {
+      "post": {
+        "summary": "Remove one account {network,value}",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/lookup": {
+      "get": {
+        "summary": "Who owns ?email= / ?phone= / ?network=&value=",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/save": {
+      "post": {
+        "summary": "An app's Add to Contacts: find by any address, else create; adds details, never overwrites the owner's edits",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/duplicates": {
+      "get": {
+        "summary": "Contacts sharing a name, phone or email",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/import": {
+      "post": {
+        "summary": "Import {vcf} text",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/export.vcf": {
+      "get": {
+        "summary": "All contacts as vCard 3.0",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "summary": "Health",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  }
+}

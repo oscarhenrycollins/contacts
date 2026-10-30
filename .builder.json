@@ -1,0 +1,6 @@
+{
+  "request": "One contact list for Messenger, email and every app: add people, edit them, link their accounts on each network",
+  "template": "hello-wizard",
+  "state": "local_draft",
+  "name": "Contacts"
+}

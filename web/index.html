@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en" data-app="contacts">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <title>Contacts</title>
+  <script src="boot.js"></script>
+  <link rel="stylesheet" href="wizard-tokens.css">
+  <link rel="stylesheet" href="wizard-ui.css">
+  <link rel="stylesheet" href="standalone.css">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="/wizard-os-home/core/app-client.js"></script>
+  <script defer src="wizard-sheet.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <div class="wz-app">
+    <header class="wz-head ct-head">
+      <h1>Contacts</h1>
+      <button id="more" class="ct-icon" type="button" aria-label="Import, export and duplicates">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h.01M12 12h.01M19 12h.01"/></svg>
+      </button>
+      <button id="add" class="ct-icon ct-add" type="button" aria-label="New contact">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </header>
+    <div class="ct-search"><input id="q" class="wz-field" type="search" placeholder="Search names, numbers, emails" aria-label="Search contacts" autocomplete="off"></div>
+    <main class="wz-scroll" id="main">
+      <div id="list" class="ct-list" aria-label="Your contacts"></div>
+      <div id="empty" class="wz-empty" hidden>
+        <div class="wz-tile" aria-hidden="true">👤</div>
+        <strong>No contacts yet</strong>
+        <p>Add someone with ＋, import a vCard file from your phone, or tap “Add to Contacts” on a chat in Messenger.</p>
+      </div>
+    </main>
+    <p id="status" class="wz-status wz-sr" role="status" aria-live="polite"></p>
+  </div>
+  <dialog id="view" class="wz-sheet ct-sheet" aria-labelledby="view-name"></dialog>
+  <dialog id="edit" class="wz-sheet ct-sheet" aria-labelledby="edit-title"></dialog>
+  <dialog id="tools" class="wz-sheet ct-sheet" aria-labelledby="tools-title"></dialog>
+  <input id="file" type="file" accept=".vcf,text/vcard,text/x-vcard" hidden>
+</body>
+</html>

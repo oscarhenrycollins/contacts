@@ -96,6 +96,78 @@ class ContactsTests(unittest.TestCase):
         self.assertEqual(sorted(c['name'] for c in s.list_contacts()['contacts']), ['Dad', 'Mom'])
         self.assertEqual(s.duplicates()['duplicates'][0]['reason'], 'Same phone')
 
+    def test_phone_fields_survive_round_trip(self):
+        s = self.s
+        card = ('BEGIN:VCARD\r\nVERSION:3.0\r\nN:Lee;Kim;;;\r\nFN:Kim Lee\r\nitem1.TEL:+1 555 0100\r\nitem1.X-ABLabel:_$!<Mobile>!$_\r\n'
+                'item2.ADR;type=HOME:;;1 Main St;Bangkok;;10110;Thailand\r\nitem2.X-ABLabel:_$!<Home>!$_\r\nURL:https://kim.example\r\n'
+                'BDAY:1604-05-31\r\nEND:VCARD\r\n')
+        s.import_vcf(card)
+        c = s.list_contacts()['contacts'][0]
+        full = s.get_contact(c['id'])['contact']
+        self.assertEqual(full['phones'][0]['label'], 'Mobile')
+        self.assertEqual(full['birthday'], '--05-31')
+        out = s.export_vcf().decode()
+        self.assertIn('item2.ADR;type=HOME:;;1 Main St;Bangkok;;10110;Thailand', out)
+        self.assertIn('item2.X-ABLabel:_$!<Home>!$_', out)
+        self.assertNotIn('item1.X-ABLabel', out)  # the phone is rewritten by Contacts, its label group with it
+        self.assertIn('N:Lee;Kim;;;', out)
+        self.assertIn('URL:https://kim.example', out)
+
+    def test_carddav_over_http(self):
+        import http.client, threading
+        from http.server import ThreadingHTTPServer
+        s = self.s
+        a = s.add_contact({'name': 'Ana', 'phones': ['+1 555 0111']})['contact']
+        srv = ThreadingHTTPServer(('127.0.0.1', 0), s.Handler)
+        port = srv.server_address[1]
+        s._LOOPBACK.add('127.0.0.1:%d' % port); s.TRUSTED_HOSTS.add('127.0.0.1:%d' % port)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            def req(method, path, body=None, headers=None, auth=True):
+                h = {'Host': '127.0.0.1:%d' % port, **(headers or {})}
+                if auth:
+                    h['Authorization'] = 'Basic ' + base64.b64encode(('contacts:' + self.pw).encode()).decode()
+                c = http.client.HTTPConnection('127.0.0.1', port, timeout=10)
+                c.request(method, path, body=body, headers=h)
+                r = c.getresponse(); return r.status, r.read().decode(), dict(r.getheaders())
+            self.pw = s.sync_setup('https://box.example:8444/contacts')['password']
+            self.assertEqual(req('PROPFIND', '/dav/principal/', auth=False, headers={'Depth': '0'})[0], 401)
+            st, body, _ = req('PROPFIND', '/dav/principal/', headers={'Depth': '0'})
+            self.assertEqual(st, 207); self.assertIn('/dav/home/', body)
+            st, body, _ = req('PROPFIND', '/dav/home/', headers={'Depth': '1'})
+            self.assertIn('<card:addressbook/>', body); self.assertIn('getctag', body)
+            st, body, _ = req('PROPFIND', '/dav/home/book/', headers={'Depth': '1'})
+            self.assertIn(a['id'] + '.vcf', body)
+            st, body, _ = req('REPORT', '/dav/home/book/', '<card:addressbook-multiget xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav"><d:href>/dav/home/book/%s.vcf</d:href></card:addressbook-multiget>' % a['id'])
+            self.assertIn('FN:Ana', body)
+            new = 'BEGIN:VCARD\r\nVERSION:3.0\r\nUID:PHONE-1\r\nFN:Bo Phone\r\nTEL;type=CELL:+66 81 000 1111\r\nADR:;;2 Soi;BKK;;;TH\r\nEND:VCARD\r\n'
+            st, _, h = req('PUT', '/dav/home/book/PHONE-1.vcf', new, {'If-None-Match': '*', 'Content-Type': 'text/vcard'})
+            self.assertEqual(st, 201)
+            st, body, h2 = req('GET', '/dav/home/book/PHONE-1.vcf')
+            self.assertIn('ADR:;;2 Soi;BKK;;;TH', body); self.assertIn('UID:PHONE-1', body)
+            st, _, _ = req('PUT', '/dav/home/book/PHONE-1.vcf', new.replace('Bo Phone', 'Bo Edited'), {'If-Match': '"0"'})
+            self.assertEqual(st, 412)
+            st, _, _ = req('PUT', '/dav/home/book/PHONE-1.vcf', new.replace('Bo Phone', 'Bo Edited'), {'If-Match': h2['ETag']})
+            self.assertEqual(st, 204)
+            self.assertEqual(len(s.list_contacts('Bo Edited')['contacts']), 1)
+            self.assertEqual(req('DELETE', '/dav/home/book/PHONE-1.vcf')[0], 204)
+            self.assertEqual(len(s.list_contacts('Bo')['contacts']), 0)
+            tok = s.sync_setup('https://box.example:8444/contacts')['profile_token']
+            st, prof, _ = req('GET', '/api/sync/profile/' + tok, auth=False)
+            self.assertIn('com.apple.carddav.account', prof); self.assertIn('/contacts/dav/principal/', prof)
+            self.assertEqual(req('GET', '/api/sync/profile/' + tok, auth=False)[0], 404)  # one-time
+        finally:
+            srv.shutdown(); srv.server_close()
+
+    def test_me_and_dismissed_duplicates(self):
+        s = self.s
+        a = s.add_contact({'name': 'Twin'})['contact']; b = s.add_contact({'name': 'twin'})['contact']
+        self.assertEqual(len(s.duplicates()['duplicates']), 1)
+        s.dismiss_duplicate([a['id'], b['id']])
+        self.assertEqual(s.duplicates()['duplicates'], [])
+        s.set_me(a['id'])
+        self.assertEqual(s.get_me()['contact']['id'], a['id'])
+
     def test_mcp_tools(self):
         s = self.s
         out = s.rpc({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call', 'params': {'name': 'contacts_add', 'arguments': {'name': 'Mia', 'emails': ['mia@x.io']}}})

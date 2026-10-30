@@ -3,6 +3,50 @@
 const $ = id => document.getElementById(id);
 const NETWORKS = {whatsapp: 'WhatsApp', telegram: 'Telegram', signal: 'Signal', instagram: 'Instagram', facebook: 'Messenger', slack: 'Slack',
   line: 'LINE', linkedin: 'LinkedIn', twitter: 'X', gmessages: 'SMS', discord: 'Discord', email: 'Email', wizard: 'Wizard Messenger', private: 'Wizard Messenger'};
+// Share links per network: what a QR code opens on someone else's phone, and how pasted links are read back.
+const LINKS = {
+  whatsapp: v => /^\+?\d{6,15}$/.test(v) ? 'https://wa.me/' + v.replace(/\D/g, '') : '',
+  signal: v => /^\+?\d{6,15}$/.test(v) ? 'https://signal.me/#p/+' + v.replace(/\D/g, '') : '',
+  telegram: v => /^[A-Za-z][\w]{3,31}$/.test(v) ? 'https://t.me/' + v : '',
+  instagram: v => /^[\w.]{1,30}$/.test(v) && !/^\d+$/.test(v) ? 'https://instagram.com/' + v : '',
+  line: v => /^[\w.@-]{2,40}$/.test(v) ? 'https://line.me/ti/p/~' + v : '',
+  linkedin: v => /^[\w-]{3,100}$/.test(v) && !/^\d+$/.test(v) ? 'https://www.linkedin.com/in/' + v : '',
+  twitter: v => /^\w{1,15}$/.test(v) && !/^\d+$/.test(v) ? 'https://x.com/' + v : '',
+  facebook: v => /^[\w.]{3,50}$/.test(v) && !/^\d+$/.test(v) ? 'https://m.me/' + v : '',
+  wizard: v => /^https:\/\//.test(v) ? v : '',
+};
+const READ_LINK = [
+  [/^(?:https?:\/\/)?(?:api\.)?wa\.me\/(\d{6,15})/i, 'whatsapp', m => '+' + m[1]], [/^(?:https?:\/\/)?(?:t\.me|telegram\.me)\/([A-Za-z]\w{3,31})/i, 'telegram'],
+  [/^(?:https?:\/\/)?(?:www\.)?instagram\.com\/([\w.]{1,30})/i, 'instagram'], [/^(?:https?:\/\/)?line\.me\/ti\/p\/~?([\w.@-]+)/i, 'line'],
+  [/^(?:https?:\/\/)?(?:[a-z]+\.)?linkedin\.com\/in\/([\w-]+)/i, 'linkedin'], [/^(?:https?:\/\/)?(?:www\.)?(?:x|twitter)\.com\/(\w{1,15})/i, 'twitter'],
+  [/^(?:https?:\/\/)?(?:m\.me|(?:www\.)?facebook\.com)\/([\w.]{3,50})/i, 'facebook'], [/^(?:https?:\/\/)?signal\.me\/#p\/(\+?\d{6,15})/i, 'signal'],
+];
+function readLink(text) {
+  text = (text || '').trim();
+  for (const [re, net, val] of READ_LINK) { const m = re.exec(text); if (m) return {network: net, value: val ? val(m) : m[1]}; }
+  return null;
+}
+const shareLink = (a, p) => {
+  if (a.network === 'whatsapp' && !LINKS.whatsapp(a.value) && p?.phones?.[0]) return LINKS.whatsapp(p.phones[0].value);
+  return (LINKS[a.network] || (() => ''))(a.value);
+};
+const BASE = location.pathname.replace(/\/(index\.html)?$/, '');
+function qrImage(text, label) {
+  if (typeof window.qrcode !== 'function') return el('p', 'ct-help', 'QR codes are unavailable here.');
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+  try { const q = qrcode(0, text.length > 300 ? 'L' : 'M'); q.addData(text); q.make();
+    const img = el('img', 'ct-qr'); img.alt = label || 'QR code'; img.src = q.createDataURL(8, 2); return img; }
+  catch { return el('p', 'ct-help', 'This card is too large for a QR code. Export it as a vCard instead.'); }
+}
+function cardForQR(p) {
+  const esc = v => String(v).replace(/([\\,;])/g, '\\$1').replace(/\n/g, '\\n');
+  const lines = ['BEGIN:VCARD', 'VERSION:3.0', 'FN:' + esc(p.name)];
+  if (p.company) lines.push('ORG:' + esc(p.company));
+  for (const x of p.phones.slice(0, 3)) lines.push('TEL:' + x.value);
+  for (const x of p.emails.slice(0, 2)) lines.push('EMAIL:' + x.value);
+  for (const a of p.accounts) { const u = shareLink(a, p); if (u) lines.push('URL:' + u); }
+  lines.push('END:VCARD'); return lines.join('\n');
+}
 const netName = n => NETWORKS[n] || (n ? n[0].toUpperCase() + n.slice(1) : '');
 let all = [], query = '';
 
@@ -82,14 +126,57 @@ async function openContact(id) {
   for (const x of p.phones) line(x.label || 'Phone', x.value, 'tel:' + x.value);
   for (const x of p.emails) line(x.label || 'Email', x.value, 'mailto:' + x.value);
   for (const x of p.accounts) line(netName(x.network), x.label || x.value);
-  if (p.birthday) line('Birthday', new Date((p.birthday.startsWith('--') ? '2000' + p.birthday.slice(1) : p.birthday) + 'T12:00:00').toLocaleDateString(undefined, p.birthday.startsWith('--') ? {month: 'long', day: 'numeric'} : {year: 'numeric', month: 'long', day: 'numeric'}));
+  if (p.birthday) line('Birthday', new Date((p.birthday.startsWith('--') ? '2000-' + p.birthday.slice(2) : p.birthday) + 'T12:00:00').toLocaleDateString(undefined, p.birthday.startsWith('--') ? {month: 'long', day: 'numeric'} : {year: 'numeric', month: 'long', day: 'numeric'}));
   if (p.notes) { const n = el('div', 'ct-line notes'); n.append(el('small', '', 'Notes'), el('span', '', p.notes)); card.append(n); }
   if (card.children.length) d.append(card);
   const bar = el('div', 'ct-bar');
   const edit = el('button', 'wz-button', 'Edit'); edit.type = 'button'; edit.onclick = () => { d.close(); editContact(p); };
   const merge = el('button', 'wz-button secondary', 'Merge…'); merge.type = 'button'; merge.onclick = () => { d.close(); pickMerge(p); };
-  bar.append(edit, merge); d.append(bar);
+  const share = el('button', 'wz-button secondary', 'Share'); share.type = 'button'; share.onclick = () => { d.close(); shareCard(p, false); };
+  bar.append(edit, share, merge); d.append(bar);
   WzSheet.open(d);
+}
+
+// ---- Share a card as QR codes: the whole card (adds to any phone's contacts) or one network's link ----
+function shareCard(p, mine) {
+  const d = $('tools'); d.replaceChildren();
+  const h = el('h2', '', mine ? 'My card' : 'Share ' + p.name); h.id = 'tools-title'; d.append(h);
+  const options = [['card', 'Contact card', cardForQR(p)], ...p.accounts.map(a => [a.network + ':' + a.value, netName(a.network), shareLink(a, p)]).filter(o => o[2])];
+  const seen = new Set(); const opts = options.filter(o => !seen.has(o[2]) && seen.add(o[2]));
+  const chips = el('div', 'ct-chips'), stage = el('div', 'ct-qr-stage');
+  const show = i => {
+    [...chips.children].forEach((c, j) => c.setAttribute('aria-pressed', String(i === j)));
+    const [, label, text] = opts[i]; stage.replaceChildren(qrImage(text, label + ' QR code'));
+    stage.append(el('p', 'ct-help', i === 0 ? 'Point a phone camera here to add ' + (mine ? 'you' : p.name) + ' to its contacts.' : 'Scan to open ' + (mine ? 'your' : p.name + '’s') + ' ' + label + '.'));
+    if (i) { const copy = el('button', 'wz-button secondary', 'Copy link'); copy.type = 'button'; copy.onclick = async () => { try { await navigator.clipboard.writeText(text); toast('Link copied'); } catch { say(text, 'note'); } }; stage.append(copy); }
+  };
+  opts.forEach((o, i) => { const c = el('button', 'wz-chip ct-chip', o[1]); c.type = 'button'; c.onclick = () => show(i); chips.append(c); });
+  d.append(chips, stage); show(0);
+  const download = el('a', 'wz-button secondary', 'Download this contact'); download.href = 'api/contacts/' + p.id + '/card.vcf'; download.download = 'contact.vcf'; d.append(download);
+  if (mine) {
+    const hint = el('p', 'ct-help', opts.length === 1 ? 'Add your WhatsApp number, Telegram or Instagram username in Edit to get a code for each.' : '');
+    const edit = el('button', 'wz-button secondary', 'Edit my card'); edit.type = 'button'; edit.onclick = () => { d.close(); editContact(p); };
+    d.append(hint, edit);
+  }
+  WzSheet.open(d);
+}
+async function myCard() {
+  let me = null; try { me = (await api('api/me')).contact; } catch (e) { /* none */ }
+  if (me) return shareCard(me, true);
+  const d = $('tools'); d.replaceChildren();
+  const h = el('h2', '', 'Which contact is you?'); h.id = 'tools-title'; d.append(h);
+  d.append(el('p', 'ct-help', 'Your card holds your own numbers and usernames, so you can share them as QR codes.'));
+  const create = el('button', 'wz-button', 'Create my card'); create.type = 'button';
+  create.onclick = async () => { const name = prompt.value.trim(); if (!name) { prompt.focus(); return; } try { const c = (await api('api/contacts', {name})).contact; await api('api/me', {contact_id: c.id}); d.close(); await load(); editContact(c); } catch (e) { say(e.message, 'error'); } };
+  const prompt = el('input', 'wz-input'); prompt.placeholder = 'Your name'; prompt.setAttribute('aria-label', 'Your name');
+  const q = el('input', 'wz-input'); q.type = 'search'; q.placeholder = 'Or find yourself'; q.setAttribute('aria-label', 'Find yourself');
+  const ul = el('ul', 'wz-list ct-pick');
+  const paint = () => { ul.replaceChildren(); const t = q.value.trim().toLowerCase(); if (!t) return;
+    for (const x of all.filter(x => x.name.toLowerCase().includes(t)).slice(0, 30)) { const li = el('li'), b = el('button', 'wz-row'); b.type = 'button'; const m = el('span', 'wz-main'); m.append(el('b', '', x.name)); b.append(face(x), m);
+      b.onclick = async () => { try { await api('api/me', {contact_id: x.id}); d.close(); myCard(); } catch (e) { say(e.message, 'error'); } }; li.append(b); ul.append(li); } };
+  q.oninput = paint;
+  const row = el('div', 'ct-inline'); row.append(prompt, create);
+  d.append(row, q, ul); WzSheet.open(d); prompt.focus();
 }
 
 // ---- Add / edit ----
@@ -108,14 +195,21 @@ function editContact(p) {
     const rows = el('div'); box.append(rows);
     const addRow = (item = {}) => {
       const r = el('div', 'ct-multi-row');
-      if (kind === 'account') { const net = el('span', 'ct-net', netName(item.network)); r.append(net); r.dataset.network = item.network; r.dataset.value = item.value; r.append(el('span', 'ct-acc', item.label || item.value)); }
+      if (kind === 'account' && item.network) { const net = el('span', 'ct-net', netName(item.network)); r.append(net); r.dataset.network = item.network; r.dataset.value = item.value; r.append(el('span', 'ct-acc', item.label || item.value)); }
+      else if (kind === 'account') {
+        const sel = el('select', 'wz-input ct-lab'); sel.setAttribute('aria-label', 'Network');
+        for (const n of ['whatsapp', 'telegram', 'instagram', 'signal', 'line', 'linkedin', 'twitter', 'facebook']) { const o = el('option', '', netName(n)); o.value = n; sel.append(o); }
+        const v = el('input', 'wz-input'); v.placeholder = 'Username, number or link'; v.setAttribute('aria-label', 'Account');
+        v.addEventListener('change', () => { const got = readLink(v.value); if (got) { sel.value = got.network; v.value = got.value; } });
+        r.dataset.free = '1'; r.append(sel, v);
+      }
       else { const v = el('input', 'wz-input'); v.type = kind === 'email' ? 'email' : 'tel'; v.value = item.value || ''; v.placeholder = kind === 'email' ? 'name@example.com' : '+1 555 123 4567'; v.setAttribute('aria-label', title); const lab = el('input', 'wz-input ct-lab'); lab.value = item.label || ''; lab.placeholder = 'Label'; lab.maxLength = 40; lab.setAttribute('aria-label', title + ' label'); r.append(v, lab); }
       const x = el('button', 'ct-x', '−'); x.type = 'button'; x.setAttribute('aria-label', 'Remove'); x.onclick = () => r.remove(); r.append(x);
       rows.append(r);
     };
     items.forEach(addRow);
-    if (kind !== 'account') { const more = el('button', 'ct-link', '＋ Add ' + (kind === 'email' ? 'email' : 'phone')); more.type = 'button'; more.onclick = () => { addRow(); rows.lastChild.querySelector('input')?.focus(); }; box.append(more); }
-    else if (!items.length) return null;
+    const more = el('button', 'ct-link', '＋ Add ' + (kind === 'email' ? 'email' : kind === 'phone' ? 'phone' : 'account (WhatsApp, Telegram, Instagram…)')); more.type = 'button';
+    more.onclick = () => { addRow(); rows.lastChild.querySelector('input')?.focus(); }; box.append(more);
     form.append(box); return rows;
   };
   const phones = multi('Phones', p.phones, 'phone'), emails = multi('Emails', p.emails, 'email'), accounts = multi('Accounts', p.accounts, 'account');
@@ -144,7 +238,8 @@ function editContact(p) {
     const body = {name: val('name'), nickname: val('nickname'), company: val('company'), title: val('title'), birthday: val('birthday'), notes: ta.value,
       phones: [...phones.children].map(r => ({value: r.children[0].value, label: r.children[1].value})).filter(x => x.value.trim()),
       emails: [...emails.children].map(r => ({value: r.children[0].value, label: r.children[1].value})).filter(x => x.value.trim())};
-    if (accounts) body.accounts = [...accounts.children].map(r => ({network: r.dataset.network, value: r.dataset.value, label: r.querySelector('.ct-acc')?.textContent || ''}));
+    body.accounts = [...accounts.children].map(r => r.dataset.free ? {network: r.querySelector('select').value, value: (readLink(r.querySelector('input').value)?.value || r.querySelector('input').value).trim().replace(/^@/, ''), label: ''}
+      : {network: r.dataset.network, value: r.dataset.value, label: r.querySelector('.ct-acc')?.textContent || ''}).filter(x => x.value);
     save.disabled = true;
     try {
       const r = fresh ? await api('api/contacts', body) : await api('api/contacts/' + p.id, body);
@@ -182,7 +277,7 @@ function pickMerge(p) {
       const li = el('li'), b = el('button', 'wz-row'); b.type = 'button';
       const main = el('span', 'wz-main'); main.append(el('b', '', x.name)); const s = subtitle(x); if (s) main.append(el('small', '', s));
       b.append(face(x), main);
-      b.onclick = async () => { try { await api('api/contacts/' + p.id + '/merge', {source_id: x.id}); d.close(); await load(); toast('Merged'); openContact(p.id); } catch (e) { say(e.message, 'error'); } };
+      b.onclick = async () => { if (!b.dataset.confirm) { b.dataset.confirm = '1'; b.append(el('small', '', 'Tap again to confirm merge. This cannot be undone.')); return; } try { await api('api/contacts/' + p.id + '/merge', {source_id: x.id}); d.close(); await load(); toast('Merged'); openContact(p.id); } catch (e) { say(e.message, 'error'); } };
       li.append(b); ul.append(li);
     }
   };
@@ -195,6 +290,9 @@ $('more').onclick = async () => {
   const h = el('h2', '', 'Contacts'); h.id = 'tools-title'; d.append(h);
   const list = el('div', 'ct-menu');
   const item = (label, help, run) => { const b = el('button', 'ct-menu-item'); b.type = 'button'; b.append(el('b', '', label), el('small', '', help)); b.onclick = run; list.append(b); };
+  item('My card & QR codes', 'Share your details or individual network links', () => { d.close(); myCard(); });
+  item('Phone sync', 'Keep contacts on your Wizard and sync with your phone', () => { d.close(); phoneSync(); });
+  item('Add from a link', 'Paste a Telegram, WhatsApp, Instagram or other profile link', () => { d.close(); addFromLink(); });
   item('Import from a file', 'A .vcf file exported from your phone, Google or iCloud', () => { d.close(); $('file').click(); });
   item('Export all', 'Download every contact as one .vcf file', () => { const a = el('a'); a.href = 'api/export.vcf'; a.download = 'contacts.vcf'; document.body.append(a); a.click(); a.remove(); });
   d.append(list);
@@ -207,8 +305,9 @@ $('more').onclick = async () => {
     for (const g of r.duplicates.slice(0, 30)) {
       const b = el('div', 'ct-dup'); const names = el('span', 'wz-main'); names.append(el('b', '', g.contacts.map(c => c.name).join(' + ')), el('small', '', g.reason)); b.append(names);
       const go = el('button', 'wz-button secondary', 'Merge'); go.type = 'button';
-      go.onclick = async () => { try { for (const id of g.ids.slice(1)) await api('api/contacts/' + g.ids[0] + '/merge', {source_id: id}); b.remove(); await load(); toast('Merged'); } catch (e) { say(e.message, 'error'); } };
-      b.append(go); dup.append(b);
+      go.onclick = async () => { if (!go.dataset.confirm) { go.dataset.confirm = '1'; go.textContent = 'Tap again to merge'; return; } try { for (const id of g.ids.slice(1)) await api('api/contacts/' + g.ids[0] + '/merge', {source_id: id}); b.remove(); await load(); toast('Merged'); } catch (e) { say(e.message, 'error'); } };
+      const no = el('button', 'wz-button secondary', 'Not the same'); no.type = 'button'; no.onclick = async () => { try { await api('api/duplicates/dismiss', {ids: g.ids}); b.remove(); toast('Kept separate'); } catch (e) { say(e.message, 'error'); } };
+      b.append(go, no); dup.append(b);
     }
   } catch (e) { /* the menu still works */ }
 };
@@ -219,10 +318,59 @@ $('file').onchange = async () => {
 };
 $('add').onclick = () => editContact(null);
 
+async function addFromLink() {
+  const d = $('tools'); d.replaceChildren();
+  const h = el('h2', '', 'Add from a link'); h.id = 'tools-title'; d.append(h);
+  d.append(el('p', 'ct-help', 'Paste a person’s network link. We will suggest an existing contact, not merge people automatically.'));
+  const link = el('input', 'wz-input'); link.type = 'url'; link.placeholder = 'https://t.me/username'; link.setAttribute('aria-label', 'Profile link');
+  const name = el('input', 'wz-input'); name.placeholder = 'Their name'; name.setAttribute('aria-label', 'Their name');
+  const help = el('p', 'ct-help'), matches = el('div', 'ct-dups');
+  const add = el('button', 'wz-button', 'Add person'); add.type = 'button';
+  const found = () => readLink(link.value);
+  link.oninput = () => {
+    const a = found(); help.textContent = a ? netName(a.network) + ' · ' + a.value : 'That link is not recognized. Try a WhatsApp, Telegram, Instagram, Signal, LINE, LinkedIn, X or Messenger profile link.';
+    matches.replaceChildren(); if (!a) return;
+    const possible = all.filter(p => p.name.toLowerCase() === name.value.trim().toLowerCase() || p.accounts.some(x => x.network === a.network && x.value === a.value));
+    if (possible.length) { matches.append(el('p', 'ct-help', 'Possible existing person — open and edit instead of making a duplicate:'));
+      for (const p of possible.slice(0, 5)) { const b = el('button', 'wz-button secondary', p.name); b.type = 'button'; b.onclick = () => { d.close(); openContact(p.id); }; matches.append(b); } }
+  };
+  name.oninput = link.oninput;
+  add.onclick = async () => { const a = found(); if (!a) { link.oninput(); link.focus(); return; } if (!name.value.trim()) { name.focus(); return; }
+    try { const r = await api('api/contacts', {name: name.value.trim(), accounts: [a]}); d.close(); await load(); openContact(r.contact.id); } catch (e) { say(e.message, 'error'); } };
+  const area = el('div', 'ct-add-link'); area.append(link, name, help, matches, add); d.append(area); WzSheet.open(d); link.focus();
+}
+
+async function phoneSync() {
+  const d = $('tools'); d.replaceChildren();
+  const h = el('h2', '', 'Phone sync'); h.id = 'tools-title'; d.append(h);
+  const status = el('p', 'ct-help', 'Checking…'); d.append(status);
+  d.append(el('p', 'ct-help', 'Your Wizard holds the address book. Your phone needs Tailscale access to this Wizard to sync. Keep iCloud Contacts on until you confirm edits work both ways.'));
+  let state; try { state = await api('api/sync'); } catch (e) { status.textContent = e.message; WzSheet.open(d); return; }
+  status.textContent = state.enabled ? 'Sync is on' + (state.last_sync ? ' · last connected ' + new Date(state.last_sync).toLocaleString() : ' · no phone has connected yet') : 'Sync is off';
+  const setup = el('button', 'wz-button', state.enabled ? 'Replace sync password' : 'Set up phone sync'); setup.type = 'button';
+  setup.onclick = async () => {
+    if (state.enabled && !setup.dataset.confirm) { setup.dataset.confirm = '1'; setup.textContent = 'Tap again — old phones will disconnect'; return; }
+    try {
+      const r = await api('api/sync/setup', {server: location.origin + BASE});
+      state = r; status.textContent = 'Sync is on · no phone has connected with this password yet';
+      secret.replaceChildren();
+      secret.append(el('p', 'ct-help', 'iPhone: open the one-time setup file below in Safari, then Settings → Profile Downloaded → Install. Review the account and keep the file private. Android: use a CardDAV client such as DAVx⁵.'));
+      const link = el('a', 'wz-button', 'Download iPhone setup'); link.href = 'api/sync/profile/' + r.profile_token; link.download = 'Wizard-Contacts.mobileconfig'; secret.append(link);
+      const manual = el('p', 'ct-help', 'Manual CardDAV server: ' + location.origin + BASE + '/dav/principal/ · user: contacts'); secret.append(manual);
+      const pass = el('code', 'ct-secret', r.password); secret.append(el('p', 'ct-help', 'Sync password (shown once):'), pass);
+      const copy = el('button', 'wz-button secondary', 'Copy password'); copy.type = 'button'; copy.onclick = async () => { await navigator.clipboard.writeText(r.password); toast('Copied'); }; secret.append(copy);
+      setTimeout(() => { pass.textContent = 'Password hidden; replace it to see a new one.'; }, 60000);
+    } catch (e) { say(e.message, 'error'); }
+  };
+  const secret = el('div', 'ct-sync-secret'); d.append(setup, secret);
+  if (state.enabled) { const off = el('button', 'wz-button secondary', 'Turn off sync'); off.type = 'button'; off.onclick = async () => { if (!off.dataset.confirm) { off.dataset.confirm = '1'; off.textContent = 'Tap again to stop phone sync'; return; } try { await api('api/sync/off', {}); d.close(); phoneSync(); } catch (e) { say(e.message, 'error'); } }; d.append(off); }
+  WzSheet.open(d);
+}
+
 if (!window.WizardApp || WizardApp.version !== 1) {
   say('Wizard system functions are unavailable. Open Contacts through Wizard.', 'error');
 } else {
-  WizardApp.ready({name: 'contacts', version: '0.1.1'});
+  WizardApp.ready({name: 'contacts', version: '0.2.0'});
   WizardApp.back.register({canGoBack: () => false, back: () => false});
 }
 load();

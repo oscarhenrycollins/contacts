@@ -13,6 +13,7 @@ raw = base64.b64decode(m.group(1))
 packed = raw[:1] == b'x'
 old = json.loads(zlib.decompress(raw) if packed else raw)
 files = {name: (root / name).read_text() for name in old}
+files['web/qr.js'] = (root / 'web/qr.js').read_text()
 data = json.dumps(files).encode()
 blob = base64.b64encode(zlib.compress(data, 9) if packed else data).decode()
 compose.write_text(text[:m.start(1)] + blob + text[m.end(1):])

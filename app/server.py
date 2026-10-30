@@ -22,7 +22,7 @@ from xml.sax.saxutils import escape as xml_escape
 ROOT = Path(__file__).resolve().parent.parent if '__file__' in globals() else Path(os.environ.get('APP_ROOT', '.')).resolve()
 DATA = Path(os.environ.get('DATA_DIR', ROOT / '.data'))
 APP_ID = 'contacts'
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 STATIC_TYPES = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml'}
 NETWORK = re.compile(r'[a-z][a-z0-9_-]{0,30}')
 PHOTO_MAX = 400 * 1024

@@ -89,6 +89,13 @@ class ContactsTests(unittest.TestCase):
         self.assertEqual(full['accounts'][0], {'network': 'telegram', 'value': '42', 'label': ''})
         self.assertEqual(s2.import_vcf(vcf), {'added': 0, 'updated': 1})  # same phone: updates, no duplicate
 
+    def test_import_never_merges_different_names_sharing_a_number(self):
+        s = self.s
+        vcf = 'BEGIN:VCARD\nFN:Mom\nTEL:+1 555 0100\nEND:VCARD\nBEGIN:VCARD\nFN:Dad\nTEL:+1 555 0100\nEND:VCARD\nBEGIN:VCARD\nFN:mom\nEMAIL:mom@x.io\nTEL:+1 555 0100\nEND:VCARD\n'
+        self.assertEqual(s.import_vcf(vcf), {'added': 2, 'updated': 1})
+        self.assertEqual(sorted(c['name'] for c in s.list_contacts()['contacts']), ['Dad', 'Mom'])
+        self.assertEqual(s.duplicates()['duplicates'][0]['reason'], 'Same phone')
+
     def test_mcp_tools(self):
         s = self.s
         out = s.rpc({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call', 'params': {'name': 'contacts_add', 'arguments': {'name': 'Mia', 'emails': ['mia@x.io']}}})

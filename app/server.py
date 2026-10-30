@@ -19,7 +19,7 @@ from urllib.parse import parse_qs, urlsplit
 ROOT = Path(__file__).resolve().parent.parent if '__file__' in globals() else Path(os.environ.get('APP_ROOT', '.')).resolve()
 DATA = Path(os.environ.get('DATA_DIR', ROOT / '.data'))
 APP_ID = 'contacts'
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 STATIC_TYPES = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml'}
 NETWORK = re.compile(r'[a-z][a-z0-9_-]{0,30}')
 PHOTO_MAX = 400 * 1024
@@ -461,6 +461,10 @@ def import_vcf(text):
                 existing = existing or lookup(email=x['value'])['contact']
             for x in body['phones']:
                 existing = existing or lookup(phone=x['value'])['contact']
+            # Only the same person (same name) folds together; a shared family or office number with another
+            # name stays a separate contact and shows up under Duplicates for the owner to decide.
+            if existing and key(existing['name']) != key(body['name']):
+                existing = None
             if existing:
                 save_from_app({'contact_id': existing['id'], **{k: body[k] for k in good}})
                 updated += 1

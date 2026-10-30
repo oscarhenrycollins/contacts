@@ -22,7 +22,7 @@ from xml.sax.saxutils import escape as xml_escape
 ROOT = Path(__file__).resolve().parent.parent if '__file__' in globals() else Path(os.environ.get('APP_ROOT', '.')).resolve()
 DATA = Path(os.environ.get('DATA_DIR', ROOT / '.data'))
 APP_ID = 'contacts'
-VERSION = '0.2.1'
+VERSION = '0.3.0'
 STATIC_TYPES = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml'}
 NETWORK = re.compile(r'[a-z][a-z0-9_-]{0,30}')
 PHOTO_MAX = 400 * 1024
@@ -438,6 +438,41 @@ def set_me(contact_id):
         return {'contact': None}
     get_contact(contact_id)
     kv_put('me', contact_id)
+    return get_me()
+
+
+def set_connected(body):
+    """Messenger reports the owner's own connected accounts; they become (and follow) My card's accounts.
+
+    Accounts the owner typed in by hand stay. Accounts that were connected and no longer are, go."""
+    accounts = body.get('accounts')
+    if not isinstance(accounts, list) or len(accounts) > 30:
+        raise Problem(400, 'accounts must be a list.')
+    fresh = clean_fields({'accounts': [a for a in accounts if isinstance(a, dict)]}).get('account', [])
+    me = get_me()['contact']
+    if not me:
+        if not fresh:
+            return {'contact': None}
+        name = str(body.get('name') or '').strip()[:TEXT['name']] or 'Me'
+        me = add_contact({'name': name})['contact']
+        kv_put('me', me['id'])
+    before = set(json.loads(kv_get('me_connected', '[]')))
+    now_keys = {'%s\n%s' % (n, v) for _, n, v, _ in fresh}
+    c = connect()
+    try:
+        with c:
+            for k in before - now_keys:
+                n, v = k.split('\n', 1)
+                c.execute("DELETE FROM field WHERE contact_id=? AND kind='account' AND network=? AND value=?", (me['id'], n, v))
+            have = {(r[0], r[1]) for r in c.execute("SELECT network,value FROM field WHERE contact_id=? AND kind='account'", (me['id'],))}
+            add = [row for row in fresh if (row[1], row[2]) not in have]
+            if add:
+                write_fields(c, me['id'], {'account': add}, replace=False)
+            if add or before - now_keys:
+                c.execute('UPDATE contact SET updated=MAX(updated+1,?) WHERE id=?', (now(), me['id']))
+    finally:
+        c.close()
+    kv_put('me_connected', json.dumps(sorted(now_keys)))
     return get_me()
 
 
@@ -1147,6 +1182,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, attach_raw(body.get('vcf') or ''))
             if path == '/api/me':
                 return self.send(200, set_me(body.get('contact_id')))
+            if path == '/api/me/connected':
+                return self.send(200, set_connected(body))
             if path == '/api/duplicates/dismiss':
                 return self.send(200, dismiss_duplicate(body.get('ids')))
             if path == '/api/sync/setup':

@@ -83,3 +83,5 @@ html[data-color-scheme=light]:not(.wz-hosted) .wz-sheet { background: var(--canv
 .ct-secret { word-break:break-all; padding:8px; border-radius:var(--r-tile); background:var(--fill); }
 .ct-dup { flex-wrap:wrap; }
 .ct-add-link { display:grid; gap:10px; }
+.ct-note { margin-top: 12px; text-align: center; }
+.ct-bar a.wz-button { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }

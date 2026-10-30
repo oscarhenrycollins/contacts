@@ -13,7 +13,7 @@ const LINKS = {
   linkedin: v => /^[\w-]{3,100}$/.test(v) && !/^\d+$/.test(v) ? 'https://www.linkedin.com/in/' + v : '',
   twitter: v => /^\w{1,15}$/.test(v) && !/^\d+$/.test(v) ? 'https://x.com/' + v : '',
   facebook: v => /^[\w.]{3,50}$/.test(v) && !/^\d+$/.test(v) ? 'https://m.me/' + v : '',
-  wizard: v => /^https:\/\//.test(v) ? v : '',
+  wizard: v => /^(https:\/\/|npub1)/.test(v) ? v : '',
 };
 const READ_LINK = [
   [/^(?:https?:\/\/)?(?:api\.)?wa\.me\/(\d{6,15})/i, 'whatsapp', m => '+' + m[1]], [/^(?:https?:\/\/)?(?:t\.me|telegram\.me)\/([A-Za-z]\w{3,31})/i, 'telegram'],
@@ -44,7 +44,7 @@ function cardForQR(p) {
   if (p.company) lines.push('ORG:' + esc(p.company));
   for (const x of p.phones.slice(0, 3)) lines.push('TEL:' + x.value);
   for (const x of p.emails.slice(0, 2)) lines.push('EMAIL:' + x.value);
-  for (const a of p.accounts) { const u = shareLink(a, p); if (u) lines.push('URL:' + u); }
+  for (const a of p.accounts) { const u = shareLink(a, p); if (/^https:/.test(u)) lines.push('URL:' + u); }
   lines.push('END:VCARD'); return lines.join('\n');
 }
 const netName = n => NETWORKS[n] || (n ? n[0].toUpperCase() + n.slice(1) : '');
@@ -152,12 +152,13 @@ function shareCard(p, mine) {
   };
   opts.forEach((o, i) => { const c = el('button', 'wz-chip ct-chip', o[1]); c.type = 'button'; c.onclick = () => show(i); chips.append(c); });
   d.append(chips, stage); show(0);
-  const download = el('a', 'wz-button secondary', 'Download this contact'); download.href = 'api/contacts/' + p.id + '/card.vcf'; download.download = 'contact.vcf'; d.append(download);
+  const bar = el('div', 'ct-bar');
+  const download = el('a', 'wz-button secondary', mine ? 'Download my card' : 'Download contact'); download.href = 'api/contacts/' + p.id + '/card.vcf'; download.download = 'contact.vcf'; bar.append(download);
   if (mine) {
-    const hint = el('p', 'ct-help', opts.length === 1 ? 'Add your WhatsApp number, Telegram or Instagram username in Edit to get a code for each.' : '');
-    const edit = el('button', 'wz-button secondary', 'Edit my card'); edit.type = 'button'; edit.onclick = () => { d.close(); editContact(p); };
-    d.append(hint, edit);
+    d.append(el('p', 'ct-help ct-note', 'Accounts you connect in Messenger appear here automatically.'));
+    const edit = el('button', 'wz-button secondary', 'Edit my card'); edit.type = 'button'; edit.onclick = () => { d.close(); editContact(p); }; bar.append(edit);
   }
+  d.append(bar);
   WzSheet.open(d);
 }
 async function myCard() {
@@ -317,6 +318,7 @@ $('file').onchange = async () => {
   catch (e) { say(e.message, 'error'); }
 };
 $('add').onclick = () => editContact(null);
+$('mine').onclick = () => myCard();
 
 async function addFromLink() {
   const d = $('tools'); d.replaceChildren();
@@ -370,7 +372,7 @@ async function phoneSync() {
 if (!window.WizardApp || WizardApp.version !== 1) {
   say('Wizard system functions are unavailable. Open Contacts through Wizard.', 'error');
 } else {
-  WizardApp.ready({name: 'contacts', version: '0.2.0'});
+  WizardApp.ready({name: 'contacts', version: '0.3.0'});
   WizardApp.back.register({canGoBack: () => false, back: () => false});
 }
 load();

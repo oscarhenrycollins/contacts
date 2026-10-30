@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Contacts",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Private contact list. The Wizard gateway authenticates; linked apps reach http://contacts:8822."
   },
   "paths": {
@@ -148,6 +148,57 @@
             "description": "OK"
           }
         }
+      }
+    },
+    "/api/me": {
+      "get": {
+        "summary": "Read the owner\u2019s selected card"
+      },
+      "post": {
+        "summary": "Select the owner\u2019s card (contact_id)"
+      }
+    },
+    "/api/duplicates/dismiss": {
+      "post": {
+        "summary": "Keep suggested people separate"
+      }
+    },
+    "/api/sync": {
+      "get": {
+        "summary": "Phone sync status; password is never returned"
+      }
+    },
+    "/api/sync/setup": {
+      "post": {
+        "summary": "Rotate the CardDAV password; return it once with a one-time setup token"
+      }
+    },
+    "/api/sync/off": {
+      "post": {
+        "summary": "Disable CardDAV"
+      }
+    },
+    "/api/sync/profile/{token}": {
+      "get": {
+        "summary": "One-time iPhone configuration profile; contains CardDAV password"
+      }
+    },
+    "/dav/principal/": {
+      "propfind": {
+        "summary": "CardDAV principal; HTTP Basic authentication"
+      }
+    },
+    "/dav/home/book/": {
+      "propfind": {
+        "summary": "CardDAV address book collection; HTTP Basic authentication"
+      },
+      "report": {
+        "summary": "CardDAV addressbook-query or multiget"
+      }
+    },
+    "/api/contacts/{id}/card.vcf": {
+      "get": {
+        "summary": "Download one contact as a vCard"
       }
     }
   }

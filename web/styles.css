@@ -70,3 +70,16 @@ a.ct-line span { color: var(--accent); }
 /* Outside Wizard the template's sheet colour is dark-only; give light previews a matching sheet. Hosted, the skin sets it. */
 @media (prefers-color-scheme: light) { html:not(.wz-hosted):not([data-color-scheme]) .wz-sheet { background: var(--canvas); } }
 html[data-color-scheme=light]:not(.wz-hosted) .wz-sheet { background: var(--canvas); }
+
+.ct-chips { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0 12px; }
+.ct-chip { background:var(--fill); color:var(--ink); }
+.ct-chip[aria-pressed="true"] { background:var(--accent); color:var(--on-accent); }
+.ct-qr-stage { display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center; }
+.ct-qr { display:block; width:min(70vw,280px); height:auto; padding:12px; background:white; border-radius:var(--r-tile); }
+.ct-inline { display:flex; gap:8px; margin-bottom:14px; }
+.ct-inline .wz-input { flex:1; min-width:0; }
+.ct-sync-secret { display:grid; gap:8px; margin:12px 0; }
+.ct-sync-secret .wz-button { justify-self:start; }
+.ct-secret { word-break:break-all; padding:8px; border-radius:var(--r-tile); background:var(--fill); }
+.ct-dup { flex-wrap:wrap; }
+.ct-add-link { display:grid; gap:10px; }

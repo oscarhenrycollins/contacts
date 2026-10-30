@@ -15,6 +15,11 @@ old = json.loads(zlib.decompress(raw) if packed else raw)
 files = {name: (root / name).read_text() for name in old}
 files['web/qr.js'] = (root / 'web/qr.js').read_text()
 data = json.dumps(files).encode()
-blob = base64.b64encode(zlib.compress(data, 9) if packed else data).decode()
+blob = base64.b64encode(zlib.compress(data, 9)).decode()
 compose.write_text(text[:m.start(1)] + blob + text[m.end(1):])
+# Each Linux exec argument must fit below 128 KiB; verify the embedded command itself too.
+import yaml
+cmd = yaml.safe_load(compose.read_text())['services']['contacts']['command'][-1]
+compile(cmd, str(compose), 'exec')
+assert len(cmd.encode()) < 120_000, 'inline command exceeds Linux per-argument limit'
 print('embedded', ', '.join(files), '->', compose)

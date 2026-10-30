@@ -168,6 +168,16 @@ class ContactsTests(unittest.TestCase):
         s.set_me(a['id'])
         self.assertEqual(s.get_me()['contact']['id'], a['id'])
 
+    def test_inline_package_fits_linux_command_limit(self):
+        import re, zlib
+        compose = (ROOT / 'runtipi/docker-compose.yml').read_text()
+        match = re.search(r"b64decode\('([^']+)'\)", compose)
+        assert match is not None
+        files = json.loads(zlib.decompress(base64.b64decode(match[1])))
+        self.assertIn('web/qr.js', files)
+        self.assertIn("__import__('zlib').decompress", compose)
+        self.assertLess(len(match[1]), 120000, 'Linux per-argument limit is 128 KiB')
+
     def test_mcp_tools(self):
         s = self.s
         out = s.rpc({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call', 'params': {'name': 'contacts_add', 'arguments': {'name': 'Mia', 'emails': ['mia@x.io']}}})

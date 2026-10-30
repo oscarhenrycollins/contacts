@@ -168,6 +168,20 @@ class ContactsTests(unittest.TestCase):
         s.set_me(a['id'])
         self.assertEqual(s.get_me()['contact']['id'], a['id'])
 
+    def test_connected_accounts_fill_and_follow_my_card(self):
+        s = self.s
+        me = s.set_connected({'name': 'James', 'accounts': [{'network': 'telegram', 'value': 'JamesDeFleur'}, {'network': 'whatsapp', 'value': '+15550100'}]})['contact']
+        self.assertEqual(me['name'], 'James')
+        self.assertEqual(s.get_me()['contact']['id'], me['id'])
+        s.update_contact(me['id'], {'accounts': me['accounts'] + [{'network': 'line', 'value': 'myline'}]})  # typed by hand
+        again = s.set_connected({'name': 'Other', 'accounts': [{'network': 'telegram', 'value': 'JamesDeFleur'}, {'network': 'instagram', 'value': 'james.df'}]})['contact']
+        self.assertEqual(again['id'], me['id'])
+        self.assertEqual(again['name'], 'James')
+        self.assertEqual(sorted((a['network'], a['value']) for a in again['accounts']), [('instagram', 'james.df'), ('line', 'myline'), ('telegram', 'JamesDeFleur')])
+        self.assertEqual(len(s.list_contacts()['contacts']), 1)
+        with self.assertRaises(s.Problem):
+            s.set_connected({'accounts': 'x'})
+
     def test_inline_package_fits_linux_command_limit(self):
         import re, zlib
         compose = (ROOT / 'runtipi/docker-compose.yml').read_text()

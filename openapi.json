@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Contacts",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "Private contact list. The Wizard gateway authenticates; linked apps reach http://contacts:8822."
   },
   "paths": {
@@ -199,6 +199,11 @@
     "/api/contacts/{id}/card.vcf": {
       "get": {
         "summary": "Download one contact as a vCard"
+      }
+    },
+    "/api/me/connected": {
+      "post": {
+        "summary": "Messenger reports the owner\u2019s connected accounts; they fill My card"
       }
     }
   }

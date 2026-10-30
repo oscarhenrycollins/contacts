@@ -4,7 +4,7 @@ id: contacts
 name: Contacts
 type: service
 category: app
-version: 0.2.1
+version: 0.3.0
 summary: One private contact list for Messenger, email and every app.
 license: GPL-3.0-only
 source: https://github.com/oscarhenrycollins/contacts
